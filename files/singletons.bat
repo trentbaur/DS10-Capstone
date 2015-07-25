@@ -1,0 +1,1 @@
+grep -vE "(NA,NA,1|1,NA,NA|NA,1,NA)" test.csv > test_clean.csv

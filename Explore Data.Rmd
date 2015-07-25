@@ -1,0 +1,234 @@
+---
+title: "Explore Data"
+output: html_document
+---
+
+
+```{r}
+#install.packages("readr")
+#install.packages("ngram")
+#install.packages("RWeka")
+#install.packages("tm")
+#install.packages("plyr")
+#install.packages("parallel")
+#install.packages("doParallel")
+#install.packages("snow")
+#install.packages("lattice")
+#install.packages("SnowballC")
+#install.packages("stringi")
+#install.packages("slam")
+#install.packages('data.table')
+#install.packages('Matrix')
+#install.packages('quanteda')
+
+library(readr)
+#library(ngram)
+#library(RWeka)
+#library(tm)
+#library(plyr)
+#library(ggplot2)
+#library(lattice)
+#library(SnowballC)
+#library(stringi)
+#library(slam)
+library(data.table)
+library(Matrix)
+library(quanteda)
+
+dfm_quanteda <- function(x) {
+    docIndex <- 1:length(x)
+    if (is.null(names(x))) 
+        names(docIndex) <- factor(paste("text", 1:length(x), sep="")) else
+            names(docIndex) <- names(x)
+        
+        alltokens <- data.table(docIndex = rep(docIndex, sapply(x, length)),
+                                features = unlist(x, use.names = FALSE))
+        alltokens <- alltokens[features != ""]  # if there are any "blank" features
+        alltokens[, "n":=1L]
+        alltokens <- alltokens[, by=list(docIndex,features), sum(n)]
+        
+        uniqueFeatures <- unique(alltokens$features)
+        uniqueFeatures <- sort(uniqueFeatures)
+        
+        featureTable <- data.table(featureIndex = 1:length(uniqueFeatures),
+                                   features = uniqueFeatures)
+        setkey(alltokens, features)
+        setkey(featureTable, features)
+        
+        alltokens <- alltokens[featureTable, allow.cartesian = TRUE]
+        alltokens[is.na(docIndex), c("docIndex", "V1") := list(1, 0)]
+        
+        sparseMatrix(i = alltokens$docIndex, 
+                     j = alltokens$featureIndex, 
+                     x = alltokens$V1, 
+                     dimnames=list(docs=names(docIndex), features=uniqueFeatures))
+}
+
+
+#---------------------------------------
+#   Initialize variables
+#---------------------------------------
+#   set to -1 to import all records
+n <- -1
+
+filenames <- c("news", "blogs", "twitter")
+files <- c("files/news_final.txt",
+           "files/blogs_final.txt",
+           "files/twitter_final.txt")
+
+
+#---------------------------------------------------------
+#   Import sample of each dataset
+#   "Keep in mind that the first n rows of the data set
+#       may not be representative."
+#   Prepocessing that has been completed:
+#       Change slashes to spaces (athletes/competitors)
+#       Change punctuation to spaces (Hmmm...I think)
+#       Remove everything but alphanumeric and spaces
+#   After import, make all text lower case
+#---------------------------------------------------------
+if (!exists('docs')) {
+    docs <- lapply(files, function(x) read_lines(x, n_max = n))
+    docs <- lapply(docs, function(x) tolower(x))
+}
+
+if (!exists('profanity')) {
+    profanity <- read_lines("files/profanity.txt")
+}
+
+#---------------------------------
+#   Import profanity list
+#---------------------------------
+
+
+
+
+#------------------------------------------
+#   Display basic summary statistics
+#   1) Number of lines per file
+#   2) Average characters per item per corpus
+#       Include StdDev for character count
+#------------------------------------------
+linecounts <- sapply(docs, function(x) length(x))
+barplot(linecounts)
+
+
+summstats <- sapply(docs, function(x) summary(nchar(x)))
+Std_Dev <- sapply(docs, function(x) sd(nchar(x)))
+summstats <- rbind(summstats, Std_Dev)
+colnames(summstats) <- filenames
+summstats
+
+
+#-------------------------------------------------------------
+#   Display two sets of boxplots for character counts
+#       1) Standardized y-axes to show proper comparison
+#       2) Self-adjusting y-axis to examine data set more closely
+#   Set y-limit of standardized plots based on highest value of 3rd quartile
+#-------------------------------------------------------------
+y_height <- max(summstats[5,]) * 1.2
+
+#   Display each set of boxplots
+par(mfrow=c(3,3))
+sapply(docs, function(x) boxplot(nchar(x), ylim=c(0, y_height)))
+sapply(docs, function(x) boxplot(nchar(x)))
+
+
+#---------------------------------------------------------------
+#   Display histograms of relative frequency (character count)
+#   Must calculate manually, Hist() will not calculate it
+#   Display using common y-axis
+#---------------------------------------------------------------
+h <- lapply(docs, function(x) hist(nchar(x), plot=F, breaks=50))
+
+h <- lapply(h, function(x) {
+        x$counts = x$counts/sum(x$counts)
+        x
+    })
+
+lapply(h, function(x) plot(x, ylim=c(0,.25)))
+
+
+#----------------------------------------------------------
+#   Create corpus via quanteda package
+#----------------------------------------------------------
+corps <- lapply(docs, function(x) corpus(x, enc="UTF-8"))
+
+
+#-------------------------------------------------------
+#   Retrieve doc count in each corpus
+#       Will differ when full dataset is read
+#
+#   Can't seem to suppress the head from displaying.
+#   But the count is transferred as just an integer
+#-------------------------------------------------------
+corpus_docs <- as.data.frame(sapply(corps, function(x) length(summary(x)$Tokens)))
+
+settings(corps[[1]])
+str(summary(corps[[1]]))
+#----------------------------------------------------------
+#   Create DocumentFrequencyMatrix
+#----------------------------------------------------------
+dfms <- lapply(corps, function(x) dfm(x,
+                                      toLower = F,
+                                      ignoredFeatures = c(profanity, stopwords("english")),
+                                      removeNumbers = T,
+                                      removePunct = F,
+                                      removeSeparators = T,
+                                      verbose=F
+                                      ))
+
+
+#---------------------------------------------------
+#   Roll DocumentTermMatrixes into frequency counts
+#   Retrieve word count per corpus
+#---------------------------------------------------
+featurecounts <- as.data.frame(sapply(dfms, function(x) length(x@Dimnames$features)))
+wordcounts <- as.data.frame(sapply(dfms, function(x) sum(x@x)), row.names = filenames)
+
+wordcounts <- cbind(featurecounts, wordcounts)#, corpus_docs)
+#wordcounts$AvgWords <- wordcounts[,2] / wordcounts[,3]
+colnames(wordcounts) <- c('Features', 'WordCount')#, 'DocCount', 'AvgWords')
+wordcounts
+
+
+#--------------------------------------------
+#   Display top 10 terms for each corpus
+#--------------------------------------------
+lapply(dfms, function(x) topfeatures(x, n=20))
+
+
+
+#--------------------------------------------------
+#   Create n-grams of each sample + combined set
+#       1, 2, 3, 4 n-grams?
+#--------------------------------------------------
+#tok <- lapply(corps, function(x) tokenize(x, ngrams=2))
+
+
+
+
+
+
+#----------------------------------------------------------
+#   How many unique words do you need in a frequency
+#   sorted dictionary to cover 50% of all word instances
+#   in the language? 90%?
+#----------------------------------------------------------
+
+
+#--------------------------------------------------
+#   Import corpus of total english words and run
+#   comparisons of % of words found in datasets
+#   (Might want to use full corpa for this analysis)
+#--------------------------------------------------
+
+
+#-------------------------------------------------------------------------
+#   Identify words uniquely represented in each corpus and not in others
+#-------------------------------------------------------------------------
+
+
+
+
+```

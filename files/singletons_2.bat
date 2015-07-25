@@ -1,0 +1,1 @@
+grep -vE "(NA,NA,1|1,NA,NA|NA,1,NA)" combined_2.csv > combined_2_clean.csv
