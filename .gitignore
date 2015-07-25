@@ -1,0 +1,11 @@
+.Rproj.user
+data
+*.csv
+*.txt
+/.Rhistory
+/.RData
+/docs/Principled Sampling.pdf
+/docs/tm.pdf
+/docs/Corpus Linguistics.pdf
+/docs/JStats - Text Mining.pdf
+/docs/ngram-guide.pdf
