@@ -13,7 +13,7 @@ topfeatures(dtms[[1]])
 
 
 
-
+#cnt <- read_lines('files/Backup/combined_4.csv', n_max = -1)
 
 
 #----------------------------------------------------------

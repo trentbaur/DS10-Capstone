@@ -1,0 +1,265 @@
+---
+title: "Milestone Report"
+output: html_document
+---
+
+###Executive Summary  
+The aim of this project is to develop a text prediction system similar to that found on mobile phones. The system will be trained on data provided by HelioHost.org.
+
+Text from these files will be processed, cleaned, summarized and developed into an algorithm that will be incorporated into a publicly available website hosted by shinyapps.io.
+
+
+```{r, include=FALSE}
+#install.packages("readr")
+#install.packages('data.table')
+#install.packages('Matrix')
+#install.packages('quanteda')
+
+library(readr)
+library(data.table)
+library(Matrix)
+library(quanteda)
+
+
+#---------------------------------------
+#   Initialize variables
+#---------------------------------------
+#   set to -1 to import all records
+n <- -1
+
+filenames <- c("news", "blogs", "twitter")
+files <- c("files/news_final.txt",
+           "files/blogs_final.txt",
+           "files/twitter_final.txt")
+
+
+#---------------------------------------------------------
+#   Import sample of each dataset
+#   "Keep in mind that the first n rows of the data set
+#       may not be representative."
+#   Prepocessing that has been completed:
+#       Change slashes to spaces (athletes/competitors)
+#       Change punctuation to spaces (Hmmm...I think)
+#       Remove everything but alphanumeric and spaces
+#   After import, make all text lower case
+#---------------------------------------------------------
+if (!exists('docs')) {
+    docs <- lapply(files, function(x) tolower(read_lines(x, n_max = n)))
+}
+
+if (!exists('profanity')) {
+    profanity <- read_lines("files/profanity.txt")
+}
+
+#----------------------------------------------------------
+#   Create corpus via quanteda package
+#----------------------------------------------------------
+corps <- lapply(docs, function(x) corpus(x, enc="UTF-8"))
+
+
+#-------------------------------------------------------
+#   Retrieve doc count in each corpus
+#       Will differ when full dataset is read
+#
+#   Can't seem to suppress the head from displaying.
+#   But the count is transferred as just an integer
+#-------------------------------------------------------
+corpus_docs <- as.data.frame(sapply(corps, function(x) length(summary(x)$Tokens)))
+
+
+#----------------------------------------------------------
+#   Create DocumentFrequencyMatrix
+#----------------------------------------------------------
+dfms <- lapply(corps, function(x) dfm(x,
+                                      toLower = F,
+                                      #ignoredFeatures = c(profanity, stopwords("english")),
+                                      removeNumbers = T,
+                                      removePunct = F,
+                                      removeSeparators = T,
+                                      verbose=F
+                                      ))
+```
+
+
+###Data Overview  
+The raw data consists of 3 files that include text from different sources:  
+* News  
+* Blogs  
+* Twitter  
+
+
+Each file includes numerous documents, each of which can represent a short phrase or many paragraphs. In addition, the number of documents in each file is not uniform: The twitter file includes the largest number of documents, more than both the blogs and news files combined.
+```{r, echo=FALSE}
+#------------------------------------------
+#   Display basic summary statistics
+#   1) Number of lines per file
+#   2) Average characters per item per corpus
+#       Include StdDev for character count
+#------------------------------------------
+linecounts <- as.matrix(sapply(docs, function(x) length(x)))
+rownames(linecounts) <- filenames
+colnames(linecounts) <- c('Documents')
+barplot(linecounts, beside = T, legend.text = filenames)
+
+linecounts
+```
+
+However, as expected, each twitter document is constrained by the 140 character limit. So while the twitter document contributes the largest number of documents, the total amount of text coming from each tweet is far smaller.  
+
+```{r, include=FALSE}
+#Below is a summary of the word counts per file. For the exploratory phase, neither stopwords nor profanity have been removed although profanity will be removed from the final product. The average blog document has ~3.5x as many words as a twitter feed and a news document has ~2.5x. The median shows slightly lower prortions but the general differences still remain.  
+
+#   These statements pump out a lot of text, regardless of echo=F, so calculate summary
+#   stats and use a new block to display them
+#   List of Tokens for each documents
+#summary(corps[[1]])$Tokens
+
+summstats <- sapply(corps, function(x) summary(summary(x)$Tokens))
+Std_Dev <- sapply(docs, function(x) sd(summary(x)$Tokens))
+summstats <- rbind(summstats, Std_Dev)
+colnames(summstats) <- filenames
+
+summstats
+```
+
+Below is a set of boxplots showing word counts per document for each file. The y-axis has been standardized. However, because of the large impact of outliers on the "Blog" chart, I have truncated the y-axis at just above the 3rd quartile.
+
+Blogs certainly have a higher median count of characters as well as wider interquartile range, including a lower 1st quartile as compared to the news file.
+```{r, include=F}
+#-------------------------------------------------------------
+#   Display two sets of boxplots for character counts
+#       1) Standardized y-axes to show proper comparison
+#       2) Self-adjusting y-axis to examine data set more closely
+#   Set y-limit of standardized plots based on highest value of 3rd quartile
+#-------------------------------------------------------------
+y_height <- max(summstats[5,]) * 1.2
+
+#   Display each set of boxplots
+dummy <- lapply(corps, function(x) summary(x)$Tokens)
+```
+
+```{r, echo=F}
+par(mfrow=c(1,3))
+boxplot(dummy[[1]], ylim=c(0, y_height), main = "News", ylab = "Word Count")
+boxplot(dummy[[2]], ylim=c(0, y_height), main = "Blogs")
+boxplot(dummy[[3]], ylim=c(0, y_height), main = "Twitter")
+```
+
+Allowing the y-axis to self-adjust shows the large number of outliers in the blog file.
+```{r, echo=F}
+par(mfrow=c(1,3))
+boxplot(dummy[[1]], main = "News", ylab = "Word Count")
+boxplot(dummy[[2]], main = "Blogs")
+boxplot(dummy[[3]], main = "Twitter")
+```
+
+
+
+Below is a set of histograms showing the percentage that each word count (x-axis) represents in the particular text file. Twitter documents have significantly lower values while blogs tend to have many more long form articles than do new documents. A majority of documents from the News file stay at the 50 word or less range.
+
+```{r, include=FALSE}
+#---------------------------------------------------------------
+#   Display histograms of relative frequency (character count)
+#   Must calculate manually, Hist() will not calculate it
+#   Display using common y-axis
+#---------------------------------------------------------------
+h <- lapply(corps, function(x) hist(summary(x)$Tokens, plot=F, breaks=50))
+
+h <- lapply(h, function(x) {
+        x$counts = x$counts/sum(x$counts)
+        x
+    })
+```
+
+```{r, echo=F}
+#par(mfrow=c(3,1))
+
+dummy <- plot(h[[1]], ylim=c(0,.25), main = "News", xlab = "Number Of Words", ylab = "Relative Frequency", xlim = c(0,200))
+dummy <- plot(h[[2]], ylim=c(0,.25), main = "Blogs", xlab = "Number Of Words", ylab = "Relative Frequency", xlim = c(0,200))
+dummy <- plot(h[[3]], ylim=c(0,.25), main = "Twitter", xlab = "Number Of Words", ylab = "Relative Frequency", xlim = c(0,200))
+```
+
+
+As a final summary, I present the total number of documents, unique words, total words and average words per document.
+```{r, echo=FALSE}
+#---------------------------------------------------
+#   Compare total word and feature counts per file
+#---------------------------------------------------
+featurecounts <- as.data.frame(sapply(dfms, function(x) length(x@Dimnames$features)))
+
+wordcounts <- as.data.frame(sapply(dfms, function(x) sum(x@x)), row.names = filenames)
+
+wordcounts <- cbind(corpus_docs, featurecounts, wordcounts)
+wordcounts$AvgWords <- wordcounts[,2] / wordcounts[,3]
+colnames(wordcounts) <- c('Documents', 'Unique Words', 'Total Words', 'Average Words')
+wordcounts
+
+```
+
+
+
+###N-gram Approach For Text Prediction
+Text prediction will be accomplished by calculating and storing frequency counts of n-grams, using 1, 2, 3 and 4 word combinations. Prediction will based on finding matches with the longer n-grams and when no matches are found (or multiple matches with similar probability exist) the algorithm will "backoff" and incorporate information from smaller n-grams to improve accuracy.
+
+The amount of data that this includes is daunting so the underlying data used by the algorithm will need to be minimized and optimized. 4-grams alone represent over 2 GB of data, so filtering out n-grams that are not useful or contribute little value is imperative.
+
+As an initial step for data reduction, I combined each set of n-grams from each file together. From there, I removed "singletons", any n-gram that only appeared once in any of the three files. (i.e. - Appeared in "News"" but not in "Blogs" or "Twitter."")
+
+Below is a summary of the initial set of n-grams vs one where singletons were removed. There are just over 600K unigrams in the combined text but they lead to almost 70 million 4-grams. Removing singletons reduces this massive quantity down to under 6 million 4-grams.
+```{r, echo=FALSE}
+rev <- matrix(c(  606948,
+                  267652,
+                13730679,
+                 4201962,
+                44945177,
+                 7646432,
+                69580953,
+                 5837092), ncol=4, nrow=2, byrow=F,
+    dimnames=list(c('all', 'filtered'), 
+                  c('unigrams', 'bigrams', 'trigrams', '4-grams')))
+
+par(mfrow=c(1,1))
+
+barplot(rev, beside = T, legend.text = c('All', 'Without Singletons'), yaxt="n")
+axis(2, axTicks(2), format(axTicks(2), scientific = F))
+
+```
+
+
+
+```{r, include=F}
+#   Recalculate the DocFreqMatrix for displaying top features
+maincorp <- corps[[1]] + corps[[2]] + corps[[3]]
+
+rm(corps)
+rm(dfms)
+
+dfms <- dfm(  maincorp,
+              toLower = F,
+              ignoredFeatures = stopwords("english"),
+              removeNumbers = T,
+              removePunct = F,
+              removeSeparators = T,
+              verbose=F)
+```
+
+
+From removing words/phrases that only occur once to words that are frequently represented, below are the top 50 words found in the text data. This list DOES exclude stopwords like "the".
+```{r, echo=FALSE}
+#--------------------------------------------
+#   Display top 10 terms for each corpus
+#--------------------------------------------
+topfeatures(dfms, n=50)
+```
+
+
+
+```{r, echo=F}
+#----------------------------------------------------------
+#   How many unique words do you need in a frequency
+#   sorted dictionary to cover 50% of all word instances
+#   in the language? 90%?
+#----------------------------------------------------------
+
+
+```

@@ -1,1 +1,1 @@
-grep -vE "(NA,NA,1|1,NA,NA|NA,1,NA)" combined_4.csv > combined_4_clean.csv
+grep -vE "(^\[|^\]|[123],NA,NA|NA,[123],NA|NA,NA,[123456])" combined_4.csv > combined_4_clean.csv
