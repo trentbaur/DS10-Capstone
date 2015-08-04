@@ -90,6 +90,7 @@ split_train_test <- function(dir, filenum, reccount, samplenum = 100, seed=1) {
     #   After import, make all text lower case
     #-----------------------------------------------------------------
     doc <- tolower(read_lines(files[filenum]))
+    doc <- gsub("( )\\1+", "\\1", doc)
 
     #   Sample reccount docs from the full file
     if (reccount == -1) {
@@ -238,10 +239,10 @@ build_ngrams(dir=dir,
              seed = seed)
 
 for (n in 1:4) {
-    #n=1
-    test <- combine_files(dir, n=n)
+    #n=4
+    nfiles <- combine_files(dir, n=n)
 
-    combined <- Reduce(function(x,y) {merge(x,y,by="V1",all=T)}, test)
+    combined <- Reduce(function(x,y) {merge(x,y,by="V1",all=T)}, nfiles)
     
     setnames(combined, old= c('V1', 'V2.x', 'V2.y', 'V2'), new = c('token', 'news_cnt', 'blog_cnt', 'twit_cnt'))
     
@@ -253,6 +254,10 @@ for (n in 1:4) {
     #   Vary threshold for output by n since freq decreases as n increases
     #   This threshold number can/should be made more complicated
     write.csv(combined[combined$total > (6-n), ], file=paste(dir, "combined_", n, ".csv", sep=""), quote = F, row.names = F)
+    
+    rm(nfiles)
+    rm(combined)
+    gc()
 }
 
 

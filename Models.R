@@ -1,6 +1,7 @@
 
 library(readr)
 library(stringr)
+library(data.table)
 
 #---------------------------------------
 #   Initialize variables
@@ -9,8 +10,6 @@ filenames <- c("news", "blogs", "twitter")
 files <- c("files/news_final.txt",
            "files/blogs_final.txt",
            "files/twitter_final.txt")
-
-
 
 
 #-----------------------------------------------------------
@@ -22,7 +21,7 @@ load_grams <- function(dir) {
     #lapply(1:4, function(n) read_lines(paste(dir, 'combined_', n, '.csv', sep=''), n_max = -1))
     
     lapply(1:4, function(x) {
-        fread(input = paste(dir, 'combined_', x, '.csv', sep=''),
+        fread(input = paste(dir, 'combined_', x, '_all.csv', sep=''),
           sep = ",",
           nrows = -1,
           header = T,
@@ -31,40 +30,82 @@ load_grams <- function(dir) {
 }
 
 
-
-
 #-----------------------------------------------------------
 #   Create set of functions to use different model logic
 #-----------------------------------------------------------
-create_stub <- function(tdata, n) {
-    words <- str_split(tdata$phrase, '_')
+create_stub <- function(phrase, n, seperator='_') {
+    #words <- str_split(phrase, seperator)
     
-    vapply(words, function(x) {
-        if (length(x)-(n-2)>0) {
-            paste(x[(length(x)-(n-2)):length(x)], collapse = '_')
-        }
-        else { '' }
+     vapply(str_split(phrase, seperator), function(x) {
+         ifelse(length(x)-(n-2)>0, paste0(x[(length(x)-(n-2)):length(x)], collapse = '_'), '')
+        
+#         
+#         if (length(x)-(n-2)>0) {
+#             paste0(x[(length(x)-(n-2)):length(x)], collapse = '_')
+#         }
+#         else { '' }
     }, '')
 }
 
-get_ngram_match <- function(stub, n) {
-    matches <- grams[[n]][grepl(paste0('\\<', stub, collapse = ''), grams[[n]]$token), ]
+get_ngram_match <- function(phrase, n, m=1, seperator='_') {
+    #stub <- create_stub(phrase, n)
+    
+    matches <- grams[[n]][grepl(paste0('\\<', create_stub(phrase, n, seperator), '_', collapse = ''), grams[[n]]$token), ]
     
     if (nrow(matches)==0) { '' }
     else { 
-        bestmatch <- matches[order(-total, -news_cnt, -blog_cnt)][1,]
-        
-        str_split(bestmatch$token, '_')[[1]][n]
+        bestmatch <- matches[order(-total, -news_cnt, -blog_cnt)][1:m,]
+        bestmatch$n <- n
+        bestmatch$lastword <- vapply(bestmatch$token, function(x) str_split(x, '_')[[1]][n], '')
+        bestmatch[!is.na(bestmatch$token),]
     }
 }
 
-model_predict4 <- function(tdata) {
+model_predict_unique <- function(tdata, n, seperator='_') {
+    vapply(tdata$phrase, function(x) {
+        result <- get_ngram_match(x, n, 1, seperator)
+        
+        ifelse(length(result) == 1, '', result$lastword)
+    }, '')
+}
 
-    tdata$stub <- create_stub(tdata, 4)
-
-    lapply(tdata$stub, function(x) {
-        get_ngram_match(x, 4)
-    })
+model_backoff <- function(tdata, seperator = '_') {
+    vapply(tdata$phrase, function(x) {
+        
+        answer <- c('')
+        
+        #   Retrieve results for 4grams. If solid, use that
+        result4 <- get_ngram_match(x, 4, 10, seperator)
+        
+        if (length(result4)==7) {
+            if (result4[1,]$total > 5) {
+                answer <- result4[1,]$lastword
+            }
+        }
+        
+        #   If not 4grams, retrieve results for 3 grams. Look for high frequency
+        #       and perhaps a match back against 4grams?
+        if (answer=='') {
+            result3 <- get_ngram_match(x, 3, 20)
+            
+            if (class(result3)[1]=='data.table') {
+                if (result3[1,c('total')] > 10) {
+                    answer <- result3[1,]$lastword
+                }
+            }
+        }
+         
+        #   If not trigrams, retrieve results for 2 grams
+        if (answer=='') {
+            result2 <- get_ngram_match(x, 2, 1)
+            
+            if (class(result2)[1]=='data.table') {
+                answer <- result2[1,]$lastword
+            }
+        }
+        
+        answer
+    }, '')
 }
 
 
@@ -72,7 +113,7 @@ model_predict4 <- function(tdata) {
 #   Process Driver
 #------------------------
 grams <- load_grams(dir)
-    
+
 traindata <- fread(input = paste(dir, 'news_train.csv', sep=''),
               nrows = -1,
               header = T,
@@ -80,8 +121,61 @@ traindata <- fread(input = paste(dir, 'news_train.csv', sep=''),
               verbose = F)
     
 
-#   Pass traindata into model
-traindata$prediction <- model_predict4(traindata)
+
+#   Pass traindata into 4gram model
+traindata$prediction4 <- model_predict_unique(traindata, 4)
+traindata$prediction3 <- model_predict_unique(traindata, 3)
+traindata$prediction2 <- model_predict_unique(traindata, 2)
+traindata$prediction <- model_backoff(traindata)
+
+
+write.csv(as.data.frame(traindata), file = paste(dir, 'train_results.csv', sep=''))
+traindata
+str(as.data.frame(traindata))
+str(traindata)
+
+
+
+model_predict_unique(traindata[1:5], 4)
+
+
+
+
+
+
+
+test <- fread(input = paste(dir,'combined_1.csv', sep=""),
+      sep = ",",
+      nrows = -1,
+      header = T,
+      stringsAsFactors = TRUE,
+      verbose = T)
+
+str(test)
+
+test$token <- as.factor(test$token)
+
+create_stub("big_shot_coach_nate_mcmillan_said_with_a", 4)
+
+
+length(get_ngram_match('whitecaps_1_crew', n=4, m=15))
+
+
+head(traindata)
+
+
+model_predict_unique(traindata[1:10,], n=4)
+
+model_backoff(quiz)
+
+
+results <- get_ngram_match('big_shot_coach_nate_mcmillan_said_with_a', n=4, m=15)
+
+rbind(get_ngram_match('big_shot_coach_nate_mcmillan_said_with_a', n=4, m=20),
+      get_ngram_match('big_shot_coach_nate_mcmillan_said_with_a', n=3, m=20),
+      get_ngram_match('big_shot_coach_nate_mcmillan_said_with_a', n=2, m=20))
+
+
 
 
 
