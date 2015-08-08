@@ -1,38 +1,4 @@
-#install.packages("readr")
-#install.packages('data.table')
-#install.packages('Matrix')
-#install.packages('quanteda')
-
-library(readr)
-library(data.table)
-library(Matrix)
-library(quanteda)
-
-#---------------------------------------
-#   Initialize variables
-#---------------------------------------
-filenames <- c("news", "blogs", "twitter")
-files <- c("files/news_final.txt",
-           "files/blogs_final.txt",
-           "files/twitter_final.txt")
-
-
-#------------------------------------------------
-#   Import profanity list / set words_to_remove
-#------------------------------------------------
-remove_stopwords <- 1
-
-manual_words <- c('[', ']')
-if (!exists('profanity')) {
-    profanity <- read_lines("files/profanity.txt")
-}
-
-if (remove_stopwords == 1) {
-    words_to_remove <- c(profanity, stopwords("english")) 
-} else {
-    words_to_remove <- profanity
-}
-
+source(file="capbase.R")
 
 #-------------------------------
 #   Function Declarations
@@ -183,7 +149,7 @@ combine_files <- function(dir, reccount, n) {
                             sep = ",",
                             nrows = -1,
                             header = T,
-                            stringsAsFactors = T,
+                            stringsAsFactors = F,
                             verbose = F)[,-1, with=F] # Remove first column which is just the rowname from the write.csv step
         
     }
@@ -202,15 +168,6 @@ combine_files <- function(dir, reccount, n) {
 #----------------------------------------------------------------------------------------------
 
 
-#--------------------------------
-#   Execution Parameters
-#--------------------------------
-#   set to -1 to import all records
-reccount = 20000
-samplenum <- 95
-seed = 1264
-
-dir <- paste("files/", samplenum, "_", seed, "_", reccount, "/", sep="")
 
 
 #---------------------------------------------------------------------
@@ -232,40 +189,50 @@ for(i in 1:3) {
                     seed = seed)
 }
 
-
 build_ngrams(dir=dir,
              reccount = reccount,
              samplenum = samplenum,
              seed = seed)
 
 for (n in 1:4) {
-    #n=4
+    #n=1
     nfiles <- combine_files(dir, n=n)
 
     combined <- Reduce(function(x,y) {merge(x,y,by="V1",all=T)}, nfiles)
     
     setnames(combined, old= c('V1', 'V2.x', 'V2.y', 'V2'), new = c('token', 'news_cnt', 'blog_cnt', 'twit_cnt'))
     
-    combined[is.na(combined$news_cnt)==T,]$news_cnt <- c(0)
-    combined[is.na(combined$blog_cnt)==T,]$blog_cnt <- c(0)
-    combined[is.na(combined$twit_cnt)==T,]$twit_cnt <- c(0)
+    combined[is.na(combined$news_cnt),]$news_cnt <- c(0)
+    combined[is.na(combined$blog_cnt),]$blog_cnt <- c(0)
+    combined[is.na(combined$twit_cnt),]$twit_cnt <- c(0)
     combined$total <- combined$news_cnt + combined$blog_cnt + combined$twit_cnt
     
+    #   Remove singletons and lower frequency ngrams
     #   Vary threshold for output by n since freq decreases as n increases
     #   This threshold number can/should be made more complicated
-    write.csv(combined[combined$total > (6-n), ], file=paste(dir, "combined_", n, ".csv", sep=""), quote = F, row.names = F)
+    combined_clean <- combined[total > (6-n)]
+    #   Remove grams shorter than n (Not sure why these happen)
+    combined_clean <- combined_clean[str_count(token, '_')==(n-1)]
+
+    #   Extract stub and last word from filtered dataset
+    combined_clean$stub <- vapply(combined_clean[,token], function(x) paste0(str_split(x, '_')[[1]][c(1:(n-1))], collapse = "_"), '')
+    
+    
+    #   Avoid writing out lastword to unigram file, waste of space and processing
+    if(n == 1) {
+        combined_clean$lastword <- combined_clean$stub
+    } else {
+        combined_clean$lastword <- vapply(combined_clean[,token], function(x) str_split(x, '_')[[1]][n], '')
+    }
+
+    write.csv(combined_clean[,c('stub', 'lastword', 'news_cnt', 'blog_cnt', 'twit_cnt', 'total'), with=F], file=paste(dir, "combined_", n, ".csv", sep=""), quote = F, row.names = F)
     
     rm(nfiles)
     rm(combined)
+    rm(combined_clean)
     gc()
 }
 
-
-#----------------------------------
-#   Post process n-gram files
-#   1)  Remove all singletons
-#   2)  Remove non-words
-#----------------------------------
 
 
 
