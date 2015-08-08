@@ -50,10 +50,10 @@ if (remove_stopwords == 1) {
 #   Create set of functions to use different model logic
 #-----------------------------------------------------------
 create_stub <- function(phrase, n, seperator='_') {
-    lapply(str_split(phrase, seperator), function(x) {
+    vapply(str_split(phrase, seperator), function(x) {
         ifelse(n==1, x[length(x)], 
                ifelse(length(x) < (n-1), '', paste0(x[(length(x)-(n-2)):length(x)], collapse = '_')))
-    })
+    }, '')
 }
 
 
