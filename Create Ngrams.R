@@ -56,7 +56,13 @@ split_train_test <- function(dir, filenum, reccount, samplenum = 100, seed=1) {
     #   After import, make all text lower case
     #-----------------------------------------------------------------
     doc <- tolower(read_lines(files[filenum]))
+    #   Remove consecutive spaces, replace with single space
     doc <- gsub("( )\\1+", "\\1", doc)
+    
+    #   Add start/end of document tokens
+    #   These needs to be applied to entire file because they will be processed in ngrams
+    doc <- vapply(doc, function(x) { paste('#d#', trim(x), '##d#', collapse = ' ')}, '', USE.NAMES = F)
+    #doc <- paste0('<d>', doc, '</d>', collapse = ' ')
 
     #   Sample reccount docs from the full file
     if (reccount == -1) {
@@ -77,8 +83,8 @@ split_train_test <- function(dir, filenum, reccount, samplenum = 100, seed=1) {
     test_indexes <- partial[-which(partial %in% train_ind)]
     
     #   Pass only the first reccount records to the preprocess function
-    test_doc <- preprocess_sentences(doc[test_indexes])
-    train_doc <- preprocess_sentences(doc[train_ind])
+    test_doc <- doc[test_indexes]
+    train_doc <- doc[train_ind]
     
     
     #------------------------------------------------------------
@@ -92,8 +98,8 @@ split_train_test <- function(dir, filenum, reccount, samplenum = 100, seed=1) {
 
     write_csv(as.data.frame(train_doc), path=trainname)
     write_csv(as.data.frame(test_doc), path=testname)
-    
 }
+
 
 build_ngrams <- function(dir, reccount, samplenum, seed) {
     trainingfiles <- vapply(filenames, function(x) paste(dir, x, "_trainraw.csv", sep=''), "")
@@ -110,6 +116,7 @@ build_ngrams <- function(dir, reccount, samplenum, seed) {
     #----------------------------------------------------------
     for(d in 1:3) {
         docs <- read_lines(trainingfiles[d])
+        #   Eliminate quotes surrounding each doc
         docs <- gsub("\"", "", docs)
         
         corp <- corpus(docs, enc="UTF-8")
@@ -121,15 +128,17 @@ build_ngrams <- function(dir, reccount, samplenum, seed) {
         #--------------------------------------------------------------------------
         #   Create n-gram DocumentFrequencyMatrix
         #   DFM can accept a corpus directly but only uses unigrams in that case
+        #   Leave in numbers: These will later be turned into placeholders
+        #   Don't remove separators as it tends to mess up the <d> tokens
         #--------------------------------------------------------------------------
         for (n in 1:4) {
-            tokens <- tokenize(corp, ngrams = n, removeNumbers = T, removeSeparators = T)
+            tokens <- tokenize(corp, ngrams = n, removeNumbers = F, removeSeparators = T, removePunct = F)
             
             dfm <- dfm(tokens, ignoredFeatures = words_to_remove, verbose=F)
             
             freq <- as.data.table(docfreq(dfm), keep.rownames=T)
             
-            write.csv(freq, file=paste(dir, filenames[d],"_", n, ".csv", sep=""), quote = F)
+            write.csv(freq, file=paste0(dir, filenames[d],"_", n, ".csv"), quote = F, row.names = F)
         }
         
         rm(tokens)
@@ -150,7 +159,7 @@ combine_files <- function(dir, reccount, n, lowfreq = 1) {
                             nrows = -1,
                             header = T,
                             stringsAsFactors = F,
-                            verbose = F)[,-1, with=F] # Remove first column which is just the rowname from the write.csv step
+                            verbose = F)[,, with=F] # Remove first column which is just the rowname from the write.csv step
         
     }
     
@@ -210,7 +219,9 @@ for (n in 1:4) {
     #   Remove singletons and lower frequency ngrams
     #   Vary threshold for output by n since freq decreases as n increases
     #   This threshold number can/should be made more complicated
-    combined_clean <- combined[total > (6-n)]
+    lowfreq <- 0 #(6-n)
+    combined_clean <- combined[total > lowfreq]
+    
     #   Remove grams shorter than n (Not sure why these happen)
     combined_clean <- combined_clean[str_count(token, '_')==(n-1)]
 
@@ -230,11 +241,24 @@ for (n in 1:4) {
 
     write.csv(combined_clean[,c('stub', 'lastword', 'news_cnt', 'blog_cnt', 'twit_cnt', 'total'), with=F], file=paste(dir, "combined_", n, ".csv", sep=""), quote = F, row.names = F)
     
-    rm(nfiles)
     rm(combined)
     rm(combined_clean)
     gc()
 }
+
+
+
+
+
+
+doc <- tolower(read_lines(files[1]))
+doc[3]
+
+paste('<d>', doc[1:10], '</d>', collapse = ' ')
+vapply(doc[1:10], function(x) { paste('<d>', x, '</d>', collapse = ' ')}, '', USE.NAMES = F)
+
+
+
 
 
 

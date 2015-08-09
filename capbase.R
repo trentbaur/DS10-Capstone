@@ -8,6 +8,7 @@ library(data.table)
 library(Matrix)
 library(quanteda)
 library(stringr)
+library(stringi)
 
 #---------------------------------------
 #   Initialize variables
@@ -22,12 +23,12 @@ files <- c("files/news_final.txt",
 #   Execution Parameters
 #--------------------------------
 #   set to -1 to import all records
-reccount = 20000
-samplenum <- 95
-seed = 1264
+reccount = 200
+samplenum <- 90
+seed = 3500
 
 dir <- paste("files/", samplenum, "_", seed, "_", reccount, "/", sep="")
-
+masterdir <- 'files/mastergrams'
 
 #------------------------------------------------
 #   Import profanity list / set words_to_remove
@@ -56,4 +57,6 @@ create_stub <- function(phrase, n, seperator='_') {
     }, '')
 }
 
-
+trim <- function (x) {
+    gsub("^\\s+|\\s+$", "", x)
+}
