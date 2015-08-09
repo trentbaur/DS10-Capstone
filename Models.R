@@ -56,21 +56,32 @@ model_backoff <- function(tdata, seperator = '_') {
 #------------------------
 #   Process Driver
 #------------------------
+run_models <- function(filename = 'news', filetype = 'train', nrows = -1) {
+    td <- fread(input = paste(dir, filename, '_', filetype, '.csv', sep=''),
+                       nrows = nrows,
+                       header = T,
+                       stringsAsFactors = F,
+                       verbose = F)
+
+    #   Pass traindata into various models and store answer
+    td$prediction4 <- model_predict_unique(td, 4)
+    td$prediction3 <- model_predict_unique(td, 3)
+    td$prediction2 <- model_predict_unique(td, 2)
+    td$backoff <- model_backoff(td)
+
+    write.table(lapply(td, unlist), file = paste(dir, filename, '_', filetype, '_results.csv', sep=''), quote = F, append = F, sep = ',')
+    
+    td
+}
+
 grams <- load_grams(dir)
 
-traindata <- fread(input = paste(dir, 'news_train.csv', sep=''),
-              nrows = -1,
-              header = T,
-              stringsAsFactors = F,
-              verbose = F)
+for (i in 1:3) {
+    results <- run_models(filenames[i], 'train', nrows=-1)
+}
 
-#   Pass traindata into various models and store answer
-traindata$prediction4 <- model_predict_unique(traindata, 4)
-traindata$prediction3 <- model_predict_unique(traindata, 3)
-traindata$prediction2 <- model_predict_unique(traindata, 2)
-traindata$prediction <- model_backoff(traindata)
 
-write.table(lapply(traindata, unlist), file = paste(dir, 'train_results.csv', sep=''), quote = F, append = F, sep = ',')
+
 
 
 

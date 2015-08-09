@@ -141,7 +141,7 @@ build_ngrams <- function(dir, reccount, samplenum, seed) {
 }
 
 
-combine_files <- function(dir, reccount, n) {
+combine_files <- function(dir, reccount, n, lowfreq = 1) {
     freqs <- list()
     
     for (i in 1:3) {
@@ -154,7 +154,16 @@ combine_files <- function(dir, reccount, n) {
         
     }
     
-    freqs
+    merged <- Reduce(function(x,y) {merge(x,y,by="V1",all=T)}, freqs)
+    
+    setnames(merged, old= c('V1', 'V2.x', 'V2.y', 'V2'), new = c('token', 'news_cnt', 'blog_cnt', 'twit_cnt'))
+    
+    merged[is.na(merged$news_cnt),]$news_cnt <- c(0)
+    merged[is.na(merged$blog_cnt),]$blog_cnt <- c(0)
+    merged[is.na(merged$twit_cnt),]$twit_cnt <- c(0)
+    merged$total <- merged$news_cnt + merged$blog_cnt + merged$twit_cnt
+    
+    merged
 }
 
 
@@ -196,17 +205,8 @@ build_ngrams(dir=dir,
 
 for (n in 1:4) {
     #n=1
-    nfiles <- combine_files(dir, n=n)
+    combined <- combine_files(dir, n=n)
 
-    combined <- Reduce(function(x,y) {merge(x,y,by="V1",all=T)}, nfiles)
-    
-    setnames(combined, old= c('V1', 'V2.x', 'V2.y', 'V2'), new = c('token', 'news_cnt', 'blog_cnt', 'twit_cnt'))
-    
-    combined[is.na(combined$news_cnt),]$news_cnt <- c(0)
-    combined[is.na(combined$blog_cnt),]$blog_cnt <- c(0)
-    combined[is.na(combined$twit_cnt),]$twit_cnt <- c(0)
-    combined$total <- combined$news_cnt + combined$blog_cnt + combined$twit_cnt
-    
     #   Remove singletons and lower frequency ngrams
     #   Vary threshold for output by n since freq decreases as n increases
     #   This threshold number can/should be made more complicated
@@ -214,11 +214,14 @@ for (n in 1:4) {
     #   Remove grams shorter than n (Not sure why these happen)
     combined_clean <- combined_clean[str_count(token, '_')==(n-1)]
 
+    
+    #--------------------------------------------------------
     #   Extract stub and last word from filtered dataset
+    #--------------------------------------------------------
     combined_clean$stub <- vapply(combined_clean[,token], function(x) paste0(str_split(x, '_')[[1]][c(1:(n-1))], collapse = "_"), '')
-    
-    
+
     #   Avoid writing out lastword to unigram file, waste of space and processing
+    #   ACTUALLY, we need the column count to match. Fill in stub.
     if(n == 1) {
         combined_clean$lastword <- combined_clean$stub
     } else {
@@ -232,9 +235,6 @@ for (n in 1:4) {
     rm(combined_clean)
     gc()
 }
-
-
-
 
 
 
