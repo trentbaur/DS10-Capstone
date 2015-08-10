@@ -123,7 +123,10 @@ process_document <- function(text, model, separator=' ', param1 = 0, param2 = 0)
 }
 
 run_model <- function(docs, model, separator=' ', param1 = 0, param2 = 0) {
-    results <- docs[, process_document(docs, model, ' ', param1, param2), by = 1:nrow(docs)]
+    results <- process_document(docs, model, ' ', param1, param2)
+    
+    
+    #results <- docs[, process_document(docs, model, ' ', param1, param2), by = 1:nrow(docs)]
     
     accuracy <- data.table(results[-1,preceding], results[-nrow(results),pred], results[-nrow(results),logprob])
     setnames(accuracy, old = c('V1', 'V2', 'V3'), new = c('expected', 'predicted', 'logprob'))
@@ -134,7 +137,8 @@ run_model <- function(docs, model, separator=' ', param1 = 0, param2 = 0) {
 
 evaluate_model <- function(docs, model, separator=' ', param1 = 0, param2 = 0) {
 
-ptm <- proc.time()
+    #   SET TIMER
+    ptm <- proc.time()
     
     accuracy <- run_model(docs, model, separator, param1, param2)
     
@@ -143,7 +147,8 @@ ptm <- proc.time()
     accuracy_rate <- sum(accuracy[,expected] == accuracy[,predicted]) / nrow(accuracy)
     perplexity <- calculate_perplexity(sum(accuracy$logprob), nrow(accuracy))
     
-runtime <- (proc.time() - ptm)[c('elapsed')]
+    #   STOP TIMER
+    runtime <- (proc.time() - ptm)[c('elapsed')]
     
     data.frame(accuracy_rate, perplexity, doc_count, word_count, runtime)
     
@@ -153,9 +158,11 @@ runtime <- (proc.time() - ptm)[c('elapsed')]
 #-----------------------------------------
 #   Execute models
 #-----------------------------------------
-modelresults <- data.frame()
+#   traindata <- load_text_data (filename = filenames[1], filetype = filetype, nrows = -1)
 
 filetype <- 'train'
+
+modelresults <- data.frame()
 
 for (i in 1:3) {
     traindata <- load_text_data (filename = filenames[i], filetype = filetype, nrows = -1)
@@ -171,83 +178,27 @@ for (i in 1:3) {
 modelresults
 
 
-traindata <- load_text_data (filename = filenames[1], filetype = filetype, nrows = -1)
-
-evaluate_model(traindata[1:20], model_gram, ' ', 2)
+#----------------------------------------------------------------------------------------------
 
 
-ptm <- proc.time()
-run_model(traindata[1:20], model_gram, ' ', 2)
-runtime <- proc.time() - ptm
-
-
+evaluate_model(traindata[1:10], model_gram, ' ', 2)
 
 results <- run_model(traindata[1:20], model_gram, ' ', 2)
 
 
+debug(run_model)
+debug(evaluate_model)
+debug(process_document)
+debug(model_gram)
+debug(model_backoff_simple)
+
+undebug(run_model)
 undebug(evaluate_model)
 undebug(process_document)
-t<-evaluate_model(testdata, model_gram, ' ', 3)
-
-t<-evaluate_model(testdata, model_gram, ' ', 2)
-evaluate_model(testdata[1:2], model_gram, ' ', 3)
-evaluate_model(testdata[1:2], model_gram, ' ', 4)
-evaluate_model(testdata[1:2], model_backoff_simple)
+undebug(model_gram)
+undebug(model_backoff_simple)
 
 
-t
-accuracy <- data.table(t[-1,]$preceding, t[-length(t),pred], t[-length(t),logprob])
-setnames(accuracy, old = c('V1', 'V2', 'V3'), new = c('expected', 'predicted', 'logprob'))
-accuracy$correct <- sum(accuracy[,expected] == accuracy[,predicted])/nrow(accuracy)
-accuracy
-
-t[!pred=='',]
-
-     t
-     undebug(get_tomatch)
-     undebug(model_gram)
-     
-class(testdata)
-str(testdata)
-
-length(testdata)
-test <- process_document('Initialize data before calling various model functions', model_gram, ' ', 2)
-sum(test$logprob)^()
-
-grams <- load_grams(master=0)
-
-testdata <- load_text_data (filename = 'news', filetype = 'test', nrows = -1)
-str(testdata)
-evaluate_model(testdata, model_gram, ' ', 2)
-
-str_split(testdata[1], ' ')
-stri_split_fixed(testdata[1], ' ')[[1]]
-
-sapply(testdata, function(x) { process_document(x, model_gram, ' ', 2, 0) })
-
-
-
-
-#------------------------
-#   Process Driver
-#------------------------
-run_models <- function(filename = 'news', filetype = 'train', nrows = -1) {
-    td <- fread(input = paste(dir, filename, '_', filetype, '.csv', sep=''),
-                       nrows = nrows,
-                       header = T,
-                       stringsAsFactors = F,
-                       verbose = F)
-
-    #   Pass traindata into various models and store answer
-    td$prediction4 <- model_predict_unique(td, 4)
-    td$prediction3 <- model_predict_unique(td, 3)
-    td$prediction2 <- model_predict_unique(td, 2)
-    td$backoff <- model_backoff(td)
-
-    write.table(lapply(td, unlist), file = paste(dir, filename, '_', filetype, '_results.csv', sep=''), quote = F, append = F, sep = ',')
-    
-    td
-}
 
 
 

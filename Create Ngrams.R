@@ -219,7 +219,7 @@ for (n in 1:4) {
     #   Remove singletons and lower frequency ngrams
     #   Vary threshold for output by n since freq decreases as n increases
     #   This threshold number can/should be made more complicated
-    lowfreq <- 0 #(6-n)
+    lowfreq <- 1 #(6-n)
     combined_clean <- combined[total > lowfreq]
     
     #   Remove grams shorter than n (Not sure why these happen)
