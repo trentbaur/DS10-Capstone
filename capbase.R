@@ -23,12 +23,12 @@ files <- c("files/news_final.txt",
 #   Execution Parameters
 #--------------------------------
 #   set to -1 to import all records
-reccount = -1
-samplenum <- 97
-seed = 320
+reccount = 200
+samplenum <- 90
+seed = 3500
 
 dir <- paste("files/", samplenum, "_", seed, "_", reccount, "/", sep="")
-masterdir <- 'files/mastergrams'
+masterdir <- 'files/mastergrams/'
 
 #------------------------------------------------
 #   Import profanity list / set words_to_remove

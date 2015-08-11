@@ -239,7 +239,9 @@ for (n in 1:4) {
         combined_clean$lastword <- vapply(combined_clean[,token], function(x) str_split(x, '_')[[1]][n], '')
     }
 
-    write.csv(combined_clean[,c('stub', 'lastword', 'news_cnt', 'blog_cnt', 'twit_cnt', 'total'), with=F], file=paste(dir, "combined_", n, ".csv", sep=""), quote = F, row.names = F)
+    #   While SOS can be useful, we generally do not want to ever predict an end of a sentence
+    #   so purge all of them here.
+    write.csv(combined_clean[combined_clean$lastword!='##d#', c('stub', 'lastword', 'news_cnt', 'blog_cnt', 'twit_cnt', 'total'), with=F], file=paste(dir, "combined_", n, ".csv", sep=""), quote = F, row.names = F)
     
     rm(combined)
     rm(combined_clean)
@@ -247,7 +249,7 @@ for (n in 1:4) {
 }
 
 
-
+combined_clean$lastword
 
 
 

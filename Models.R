@@ -13,6 +13,7 @@ load_grams <- function(master=0) {
           verbose = F) 
         
         setkey(dt, stub, total, news_cnt, blog_cnt)
+        
     })
 }
 
@@ -56,7 +57,7 @@ get_logprob <- function(matches, lambda = 1) {
 }
 
 calculate_perplexity <- function(logprob, m) {
-    2 ^ ((-1/m) * logprob)
+    2 ^ (-1 * (logprob / m))
 }
 
 #------------------------
@@ -112,9 +113,17 @@ process_document <- function(text, model, separator=' ', param1 = 0, param2 = 0)
     #   Use stringi function directly, will be a small bit faster
     words <- stri_split_fixed(text, separator)[[1]]
     
+    #   Fix the SOD/EOD tokens. Even though we're going to delete the SOD rows,
+    #   we still want to predict off of it. (And potentially match the first word.)
+     words[grep(pattern = '##d#', x = words)] <- '##d#'
+     words[grep(pattern = '"#d#', x = words)] <- '#d#'
+    
+    
     #   Loop through each word and send it and the previous words to supplied model
     results <- lapply(1:length(words), function(x) {
-        model(words[max(1,(x-3)):x], param1, param2)
+        output <- model(words[max(1,(x-3)):x], param1, param2)
+        output$to_predict <- words[x+1]
+        output
     })
     
     #   Return results as data frame to simplify usage
@@ -125,12 +134,18 @@ process_document <- function(text, model, separator=' ', param1 = 0, param2 = 0)
 run_model <- function(docs, model, separator=' ', param1 = 0, param2 = 0) {
     results <- process_document(docs, model, ' ', param1, param2)
     
+    #   Shift data so the predicted word is next to the actual word
+    accuracy <- data.table(results[-1, .(preceding, to_predict)], results[-nrow(results),pred], results[-nrow(results),logprob])
+    setnames(accuracy, old = c('V2', 'V3'), new = c('predicted', 'logprob'))
     
-    #results <- docs[, process_document(docs, model, ' ', param1, param2), by = 1:nrow(docs)]
+    #   For purposes of perplexity, remove any rows with preceding ending in SOD. (#d#)
+    #   There is no prediction possible when preceding = EOD so it is just 
+    #       an unnecessary penalty to perplexity score.
+    #   EOD, however, can have a prediction based on legitimate preceding words.
+    #   Leave these logprobs in for the time being.
+    accuracy <- accuracy[!grepl(pattern = '(##d#)$', accuracy$preceding), ]
     
-    accuracy <- data.table(results[-1,preceding], results[-nrow(results),pred], results[-nrow(results),logprob])
-    setnames(accuracy, old = c('V1', 'V2', 'V3'), new = c('expected', 'predicted', 'logprob'))
-    accuracy$correct <- accuracy[,expected] == accuracy[,predicted]
+    accuracy$Correct <- accuracy[,to_predict] == accuracy[,predicted]
     
     accuracy
 }
@@ -144,7 +159,7 @@ evaluate_model <- function(docs, model, separator=' ', param1 = 0, param2 = 0) {
     
     doc_count <- nrow(docs)
     word_count <- nrow(accuracy)
-    accuracy_rate <- sum(accuracy[,expected] == accuracy[,predicted]) / nrow(accuracy)
+    accuracy_rate <- sum(accuracy[,to_predict] == accuracy[,predicted]) / nrow(accuracy)
     perplexity <- calculate_perplexity(sum(accuracy$logprob), nrow(accuracy))
     
     #   STOP TIMER
@@ -158,6 +173,7 @@ evaluate_model <- function(docs, model, separator=' ', param1 = 0, param2 = 0) {
 #-----------------------------------------
 #   Execute models
 #-----------------------------------------
+#   grams <- load_grams(master=1)
 #   traindata <- load_text_data (filename = filenames[1], filetype = filetype, nrows = -1)
 
 filetype <- 'train'
@@ -181,9 +197,21 @@ modelresults
 #----------------------------------------------------------------------------------------------
 
 
-evaluate_model(traindata[1:10], model_gram, ' ', 2)
+evaluate_model(traindata, model_gram, ' ', 2)
+evaluate_model(traindata[2:4], model_gram, ' ', 4)
+
+run_model(traindata[2:4], model_gram, ' ', 2)
+
+run_model(traindata[2:4], model_gram, ' ', 3)
+
+run_model(traindata[2:4], model_gram, ' ', 4)
 
 results <- run_model(traindata[1:20], model_gram, ' ', 2)
+
+
+
+run_model(traindata[2], model_gram, ' ', 2)
+
 
 
 debug(run_model)
