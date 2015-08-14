@@ -27,6 +27,10 @@ reccount = 200
 samplenum <- 90
 seed = 3500
 
+# reccount = -1
+# samplenum <- 97
+# seed = 680
+
 dir <- paste("files/", samplenum, "_", seed, "_", reccount, "/", sep="")
 masterdir <- 'files/mastergrams/'
 

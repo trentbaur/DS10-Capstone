@@ -61,7 +61,7 @@ split_train_test <- function(dir, filenum, reccount, samplenum = 100, seed=1) {
     
     #   Add start/end of document tokens
     #   These needs to be applied to entire file because they will be processed in ngrams
-    doc <- vapply(doc, function(x) { paste('#d#', trim(x), '##d#', collapse = ' ')}, '', USE.NAMES = F)
+    #doc <- vapply(doc, function(x) { paste('#d#', trim(x), '##d#', collapse = ' ')}, '', USE.NAMES = F)
     #doc <- paste0('<d>', doc, '</d>', collapse = ' ')
 
     #   Sample reccount docs from the full file
@@ -241,7 +241,8 @@ for (n in 1:4) {
 
     #   While SOS can be useful, we generally do not want to ever predict an end of a sentence
     #   so purge all of them here.
-    write.csv(combined_clean[combined_clean$lastword!='##d#', c('stub', 'lastword', 'news_cnt', 'blog_cnt', 'twit_cnt', 'total'), with=F], file=paste(dir, "combined_", n, ".csv", sep=""), quote = F, row.names = F)
+    #write.csv(combined_clean[combined_clean$lastword!='##d#', c('stub', 'lastword', 'news_cnt', 'blog_cnt', 'twit_cnt', 'total'), with=F], file=paste(dir, "combined_", n, ".csv", sep=""), quote = F, row.names = F)
+    write.csv(combined_clean[, c('stub', 'lastword', 'news_cnt', 'blog_cnt', 'twit_cnt', 'total'), with=F], file=paste(dir, "combined_", n, ".csv", sep=""), quote = F, row.names = F)
     
     rm(combined)
     rm(combined_clean)
