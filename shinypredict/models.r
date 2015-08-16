@@ -1,5 +1,4 @@
 
-
 #-----------------------------
 #   Data load functions
 #-----------------------------
@@ -51,9 +50,15 @@ get_logprob <- function(matches, preceding, lambda = 1) {
     if (nrow(matches) > 0)
     { 
         prob <- log((matches$total / sum(matches$total)) * lambda, base = 2)
+#         logprob_news <- ifelse(sum(matches$news_cnt)==0,0,log((matches$news_cnt / sum(matches$news_cnt)) * lambda, base = 2))
+#         logprob_blog <- ifelse(sum(matches$blog_cnt)==0,0,log((matches$blog_cnt / sum(matches$blog_cnt)) * lambda, base = 2))
+#         logprob_twit <- ifelse(sum(matches$twit_cnt)==0,0,log((matches$twit_cnt / sum(matches$twit_cnt)) * lambda, base = 2))
         prediction <- matches$lastword
     } else {
         prob <- log(.00001, base = 2)
+#         logprob_news <- log(.00001, base = 2)
+#         logprob_blog <- log(.00001, base = 2)
+#         logprob_twit <- log(.00001, base = 2)
         prediction <- ''
     }
     
@@ -179,21 +184,45 @@ trim <- function (x) {
 clean_input <- function(typing) {
     x <- trim(tolower(typing))
     
-    gsub("[^[:alpha:][:space:]']", "", x)
+    gsub("[^[:alpha:][:space:]]", "", x)
 }
 
 predict_word <- function(typing) {
     submit_text <- data.table(clean_input(typing))
     
     predictions <- model_backoff_stupid(stri_split_fixed(submit_text, ' ')[[1]])
-    predictions$prob <- predictions[, 2^logprob]
-    
-    unique(predictions[, probability:=sum(prob), by=guess][order(-probability),.(guess, probability)])[1:15]
+
+    if (length(predictions)>0) {
+        predictions$prob <- predictions[, 2^predictions$logprob]
+
+        predictions[, probability:=sum(prob), by=guess]
+        unique(predictions[order(-probability),.(guess, probability)])[1:15]
+    }
 }
 
 
-#predict_word('this way')
-#predict_word('on one side of an')
+#predict_word('this waycvfdfdf')
+#predict_word('on one side of ')
+#predict_word("I just can't ")
+
+#   model_backoff_stupid(stri_split_fixed('on one side of an', ' ')[[1]])
+#   model_backoff_stupid(stri_split_fixed("I just can't", ' ')[[1]])
+# get_tomatch(clean_input("I just can't"), 2)
+
+#gsub(pattern = "[^[:alpha:][:space:]]", replacement = '', x = "I just can't")
+
+# x[1,guess]
+
+grams = load_grams('data/', mincount=3)
+
+# 
+# grams[[1]][stub=='this']
+# 
+# grams[[1]][stub==get_tomatch('this', 1), ][order(-total, -news_cnt, -blog_cnt)]
+# 
+# logprobs <- get_logprob(matches2, tomatch2, lambda = (.4*.4))
+
+
 
 
 

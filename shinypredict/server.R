@@ -1,24 +1,62 @@
 # server.R
 
-source("../Models.R")
+library(shiny)
+library(readr)
+library(Matrix)
+library(quanteda)
+library(stringi)
 
-if (!exists('grams')) {
-  grams <- load_grams(master=1, mincount=4)
-}
+source("models.r")
+
+# if (!exists('grams')) {
+#   grams = load_grams('data/', mincount=4)
+# }
+
+#grams = load_grams('data/', mincount=4)
 
 shinyServer(function(input, output) {
-      #---------------------------------------------------
-      #     Reactive data functions
-      #     Only run when underlying dataset changes
-      #---------------------------------------------------
-      dataInput <- reactive({
-            predict_word(input$typing)
-      })
+    #---------------------------------------------------
+    #     Reactive data functions
+    #     Only run when underlying dataset changes
+    #---------------------------------------------------
+    dataInput <- reactive({
+        #if (!substr(x = input$typing, nchar(input$typing), nchar(input$typing))==' ') {
+            data <- predict_word(input$typing)
+            data
+        #}
+        
+    })
+    
+    top_prediction <- reactive ({
+        if(length(dataInput()>0)) {
+            x <- dataInput()[1,guess]
+            x
+        } else {
+            ''
+        }
+    })
 
-      output$table1 <- renderDataTable(
-        dataInput(), options = list(paging = F, searching = F))
+    output$table1 <- renderDataTable(
+        dataInput(), options = list(paging = F, searching = F)
+    )
+    
+    output$top_prediction <- renderText({ 
+        top_prediction()
+    })
 
 })
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

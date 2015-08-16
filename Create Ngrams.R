@@ -1,4 +1,21 @@
-source(file="capbase.R")
+source(file="capbase.r")
+
+#------------------------------------------------
+#   Import profanity list / set words_to_remove
+#------------------------------------------------
+remove_stopwords <- 0
+
+manual_words <- c('[', ']')
+if (!exists('profanity')) {
+    profanity <- read_lines("files/profanity.txt")
+}
+
+if (remove_stopwords == 1) {
+    words_to_remove <- c(profanity, stopwords("english")) 
+} else {
+    words_to_remove <- profanity
+}
+
 
 #-------------------------------
 #   Function Declarations
